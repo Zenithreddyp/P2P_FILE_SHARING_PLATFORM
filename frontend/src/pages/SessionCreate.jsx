@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import "../Styles/SessionCreate.css";
-import dummyQR from "../assets/dummyqr200x200.png";
+import Header from "../components/Header";
 import { QRCodeSVG } from "qrcode.react";
 // import { io } from "socket.io-client";
 import { socket, pc, dc } from "../webrtc";
@@ -69,6 +69,11 @@ const SessionCreate = () => {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       console.log("Offer created");
+
+      socket.emit("sdp-offer", {
+          roomid: roomid,
+          sdpoffer: pc.localDescription,
+      });
     };
 
     const handlesdpanswer = async (data) => {
@@ -79,14 +84,19 @@ const SessionCreate = () => {
       // socket.emit("getready", { roomid });
     };
 
-    pc.onicecandidate = (e) => {
-      if (e.candidate === null && roomid) {
-        socket.emit("sdp-offer", {
-          roomid,
-          sdpoffer: pc.localDescription,
-        });
+
+
+    const handleIceCandidate = async ({ candidate }) => {
+      if (candidate) {
+         try {
+           await pc.addIceCandidate(new RTCIceCandidate(candidate));
+         } catch (error) {
+           console.error("Error adding ice candidate", error);
+         }
       }
     };
+
+    socket.on("ice-candidate", handleIceCandidate);
 
     if (socket.connected && !roomid) {
       handleconnect();
@@ -143,6 +153,7 @@ const SessionCreate = () => {
       socket.off("connected&url", handleurl);
       socket.off("peerconnected", handlepeerconnected);
       socket.off("sdp-answer", handlesdpanswer);
+      socket.off("ice-candidate", handleIceCandidate);
       pc.onicecandidate = null;
     };
   }, [roomid]);
@@ -183,10 +194,12 @@ const SessionCreate = () => {
   const [expanded, setExpanded] = useState(false);
 
   return (
+    <>
+    <Header />
     <div className="session-page-wrapper">
       <div className="session-card">
-        <div className="glow-effect left"></div>
-        <div className="glow-effect right"></div>
+        {/* <div className="glow-effect left"></div>
+        <div className="glow-effect right"></div> */}
 
         <div className="connection-visual"></div>
 
@@ -224,8 +237,13 @@ const SessionCreate = () => {
             <button className="share-btn" onClick={shareMail}>
               <MailIcon /> <span>Mail</span>
             </button>
-            <button className="share-btn" onClick={copyToClipboard}>
-              <CopyIcon /> <span>Copy</span>
+            
+            <button 
+              className={`share-btn ${isCopied ? "copied" : ""}`} 
+              onClick={copyToClipboard}
+            >
+              {isCopied ? <CheckIcon /> : <CopyIcon />}
+              <span>{isCopied ? "Copied" : "Copy"}</span>
             </button>
           </div>
 
@@ -238,6 +256,7 @@ const SessionCreate = () => {
         </div>
       </div>
     </div>
+      </>
   );
 };
 
@@ -353,6 +372,20 @@ const TelegramIcon = () => (
   >
     <line x1="22" y1="2" x2="11" y2="13"></line>
     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+  </svg>
+);
+const CheckIcon = () => (
+  <svg
+    width="22"
+    height="22"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polyline points="20 6 9 17 4 12"></polyline>
   </svg>
 );
 
